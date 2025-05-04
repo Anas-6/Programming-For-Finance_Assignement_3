@@ -13,46 +13,31 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, classification_report
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
-st.set_page_config(page_title="Finance ML Dashboard", layout="wide", page_icon="💹")
+st.set_page_config(page_title="Finance ML Dashboard", layout="wide", page_icon="📉")
 
 # ----------------- Initialize Session State -----------------
-if 'df' not in st.session_state:
-    st.session_state.df = None
-if 'features' not in st.session_state:
-    st.session_state.features = []
-if 'target' not in st.session_state:
-    st.session_state.target = None
-if 'X_train' not in st.session_state:
-    st.session_state.X_train = None
-if 'X_test' not in st.session_state:
-    st.session_state.X_test = None
-if 'y_train' not in st.session_state:
-    st.session_state.y_train = None
-if 'y_test' not in st.session_state:
-    st.session_state.y_test = None
-if 'model' not in st.session_state:
-    st.session_state.model = None
-if 'y_pred' not in st.session_state:
-    st.session_state.y_pred = None
+for key in ['df', 'features', 'target', 'X_train', 'X_test', 'y_train', 'y_test', 'model', 'y_pred']:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
 # ----------------- Header -----------------
-st.title("💹 Machine Learning on Financial Data")
+st.title("📉 Machine Learning on Financial Data")
 st.image("https://media.giphy.com/media/QpVUMRUJGokfqXyfa1/giphy.gif", use_container_width=True)
-st.markdown("Welcome to the **AF3005 Finance ML Dashboard**. Upload Kragle data or fetch live data from Yahoo Finance to build and evaluate ML models.")
+st.markdown("Welcome to the **AF3005 Finance ML Dashboard**. Upload Kaggle data or fetch live data from Yahoo Finance to build and evaluate ML models.")
 
 # ----------------- Sidebar -----------------
 st.sidebar.header("📁 Load Data")
-data_option = st.sidebar.radio("Choose Data Source", ["Import Kaggle Data", "Yahoo Finance"])
+data_option = st.sidebar.radio("Choose Data Source", ["Kaggle Dataset Link", "Yahoo Finance"])
 
-if data_option == "Kragle Link":
-    csv_link = st.sidebar.text_input("Paste Kaggle  Link:")
-    if st.sidebar.button("Load Kragle Data"):
+if data_option == "Kaggle Dataset Link":
+    kaggle_link = st.sidebar.text_input("Paste Kaggle Raw CSV File URL:")
+    if st.sidebar.button("Load Kaggle Data"):
         try:
-            st.session_state.df = pd.read_csv(csv_link)
+            st.session_state.df = pd.read_csv(kaggle_link)
             st.success("✅ Kaggle dataset loaded successfully!")
         except Exception as e:
             st.error(f"Error loading dataset: {e}")
@@ -80,26 +65,36 @@ st.header("⚙️ Step-by-Step ML Workflow")
 
 # Step 1: Preprocessing
 if st.button("1️⃣ Preprocessing"):
+    st.markdown("---\n### 🧹 Preprocessing: Removing Missing Values and Scaling")
     df = st.session_state.df.copy()
     st.write("Missing values per column:")
     st.dataframe(df.isnull().sum())
     df.dropna(inplace=True)
+
+    numeric_cols = df.select_dtypes(include=np.number).columns
+    scaler = StandardScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+
     st.session_state.df = df
-    st.success("✅ Missing values dropped.")
+    st.success("✅ Missing values dropped and data scaled using StandardScaler.")
 
 # Step 2: Feature Engineering
 if st.button("2️⃣ Feature Engineering"):
+    st.markdown("---\n### 🏗️ Feature Engineering")
     df = st.session_state.df
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    default_features = st.session_state.features if st.session_state.features else numeric_cols[:-1]
+    default_target = st.session_state.target if st.session_state.target else "Close"
 
-    st.session_state.features = st.multiselect("Select feature columns:", options=numeric_cols, default=numeric_cols[:-1])
-    st.session_state.target = st.selectbox("Select target column:", options=numeric_cols, index=numeric_cols.index("Close") if "Close" in numeric_cols else len(numeric_cols) - 1)
-    
+    st.session_state.features = st.multiselect("Select feature columns:", options=numeric_cols, default=default_features)
+    st.session_state.target = st.selectbox("Select target column:", options=numeric_cols, index=numeric_cols.index(default_target) if default_target in numeric_cols else len(numeric_cols) - 1)
+
     st.success(f"✅ Selected features: {st.session_state.features}")
     st.success(f"✅ Target variable: {st.session_state.target}")
 
 # Step 3: Train/Test Split
 if st.button("3️⃣ Train/Test Split"):
+    st.markdown("---\n### 🧪 Splitting Data into Training & Testing Sets")
     df = st.session_state.df
     if st.session_state.features and st.session_state.target:
         X = df[st.session_state.features]
@@ -118,23 +113,18 @@ if st.button("3️⃣ Train/Test Split"):
     else:
         st.warning("⚠️ Please select features and target first.")
 
-
-
-
 # ---------------- Step 4: Model Selection ----------------
-if st.button("4️⃣ Select Model"):
-    st.session_state.show_model_dropdown = True
-
-if st.session_state.get("show_model_dropdown", False):
-    st.session_state.model_choice = st.selectbox(
-        "Select an ML Model",
-        ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
-        key="model_choice"
-    )
+if st.button("4 Select Model"):
+st.markdown("---\n### 🧠 Step 4: Machine Learning Models")
+model_choice = st.selectbox(
+    "Select an ML Model",
+    ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
+    key="model_choice"
+)
 
 # ---------------- Step 5: Train Model ----------------
-if st.button("5️⃣ Train Model"):
-    # Ensure Train/Test split has been done
+if st.button("4️⃣ Train Model"):
+    st.markdown("---\n### 🚀 Training the Selected Model")
     if st.session_state.X_train is None or st.session_state.y_train is None:
         st.warning("⚠️ Please complete Train/Test Split first.")
     else:
@@ -146,7 +136,6 @@ if st.button("5️⃣ Train Model"):
             model.fit(X_train, y_train)
 
         elif model_choice == "Logistic Regression":
-            # Binarize around median
             y_bin = (y_train > y_train.median()).astype(int)
             model = LogisticRegression(max_iter=200)
             model.fit(X_train, y_bin)
@@ -165,35 +154,52 @@ if st.button("5️⃣ Train Model"):
 
 # Step 6: Evaluation
 if st.button("6️⃣ Evaluate Model"):
+    st.markdown("---\n### 📊 Evaluating Model Performance")
     model = st.session_state.model
-    y_pred = model.predict(st.session_state.X_test) if isinstance(model, (LinearRegression, LogisticRegression)) else model.predict(st.session_state.X_test)
+    X_test = st.session_state.X_test
+    y_test = st.session_state.y_test
+    y_pred = model.predict(X_test)
     st.session_state.y_pred = y_pred
 
-    if isinstance(model, (LinearRegression, LogisticRegression)):
-        mse = mean_squared_error(st.session_state.y_test, y_pred)
-        r2 = r2_score(st.session_state.y_test, y_pred)
+    if isinstance(model, LinearRegression):
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
         st.metric("📉 Mean Squared Error", f"{mse:,.2f}")
         st.metric("📈 R-squared Score", f"{r2:.4f}")
 
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=st.session_state.y_test, y=y_pred, mode='markers', name="Predicted", marker=dict(color='blue')))
-        fig.add_trace(go.Scatter(x=st.session_state.y_test, y=st.session_state.y_test, mode='lines', name="Ideal Line", line=dict(color='green')))
+        fig.add_trace(go.Scatter(x=y_test, y=y_pred, mode='markers', name="Predicted", marker=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=y_test, y=y_test, mode='lines', name="Ideal Line", line=dict(color='green')))
         fig.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted")
         st.plotly_chart(fig)
+
+        coeffs = pd.DataFrame({"Feature": X_test.columns, "Coefficient": model.coef_})
+        st.dataframe(coeffs)
+
+        residuals = y_test - y_pred
+        fig = px.histogram(residuals, nbins=50, title="Residuals Distribution")
+        st.plotly_chart(fig)
+
+    elif isinstance(model, LogisticRegression):
+        y_true_bin = (y_test > y_test.median()).astype(int)
+        acc = accuracy_score(y_true_bin, y_pred)
+        st.metric("✅ Accuracy", f"{acc*100:.2f}%")
+        st.text("Classification Report:")
+        st.text(classification_report(y_true_bin, y_pred))
+
     else:
-        # K-Means Clustering visualization
         st.write("K-Means Clustering Result:")
         st.write(f"Cluster Centers: {model.cluster_centers_}")
         st.write(f"Labels: {model.labels_}")
 
-        # Visualize the clusters
-        df_with_labels = st.session_state.X_test.copy()
-        df_with_labels['Cluster'] = model.labels_
+        df_with_labels = X_test.copy()
+        df_with_labels['Cluster'] = model.predict(X_test)
         fig = px.scatter(df_with_labels, x=df_with_labels.columns[0], y=df_with_labels.columns[1], color='Cluster', title="K-Means Clusters")
         st.plotly_chart(fig)
 
 # Step 7: Download Results
 if st.button("7️⃣ Show Predictions & Download"):
+    st.markdown("---\n### 💾 Show and Download Predictions")
     results_df = pd.DataFrame({
         "Actual": st.session_state.y_test,
         "Predicted": st.session_state.y_pred
