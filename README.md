@@ -30,3 +30,11 @@ This interactive Streamlit application lets you:
 
 ## Requirements
 
+streamlit
+pandas
+numpy
+scikit-learn
+matplotlib
+plotly
+yfinance
+
