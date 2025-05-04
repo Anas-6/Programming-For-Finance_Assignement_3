@@ -38,6 +38,6 @@ matplotlib
 plotly
 yfinance
 
-##Demo Video
+## Demo Video
 [screen-recorder-sun-may-04-2025-21-53-12.webm](https://github.com/user-attachments/assets/ab3a307d-916b-4de4-9ae7-4b6c1e7807b5)
 
