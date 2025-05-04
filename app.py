@@ -118,46 +118,44 @@ if st.button("3️⃣ Train/Test Split"):
     else:
         st.warning("⚠️ Please select features and target first.")
 
-# Step 4: Model Selection (Choose one)
-if st.button("4️⃣ Choose Model"):
-    model_choice = st.selectbox("Select ML Model", ["Linear Regression", "Logistic Regression", "K-Means Clustering"])
+# ---------------- Step 4: Model Selection ----------------
+st.subheader("⚙️ Step 4: Machine Learning Models (Choose One)")
 
-    # Save the model choice in session state
-    st.session_state.model_choice = model_choice
-    st.success(f"✅ Selected model: {model_choice}")
+# Bind the selectbox directly to session_state['model_choice']
+model_choice = st.selectbox(
+    "Select an ML Model",
+    ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
+    key="model_choice"
+)
 
-# Step 5: Train the Model
+# ---------------- Step 5: Train Model ----------------
 if st.button("5️⃣ Train Model"):
-    # Make sure data is split
+    # Ensure Train/Test split has been done
     if st.session_state.X_train is None or st.session_state.y_train is None:
-        st.warning("⚠️ Please complete the Train/Test Split step first.")
+        st.warning("⚠️ Please complete Train/Test Split first.")
     else:
-        model_choice = st.session_state.get("model_choice", "Linear Regression")
         X_train = st.session_state.X_train
         y_train = st.session_state.y_train
-        
-        # Initialize and train
+
         if model_choice == "Linear Regression":
             model = LinearRegression()
             model.fit(X_train, y_train)
-        
+
         elif model_choice == "Logistic Regression":
-            # Binarize the target around its median
-            y_binary = (y_train > y_train.median()).astype(int)
+            # Binarize around median
+            y_bin = (y_train > y_train.median()).astype(int)
             model = LogisticRegression(max_iter=200)
-            model.fit(X_train, y_binary)
-            # Save binary labels for later evaluation
-            st.session_state.y_train_binary = y_binary
-        
+            model.fit(X_train, y_bin)
+            st.session_state.y_train_binary = y_bin
+
         elif model_choice == "K-Means Clustering":
             model = KMeans(n_clusters=3, random_state=42)
             model.fit(X_train)
-        
+
         else:
-            st.error(f"❌ Unknown model choice: {model_choice}")
+            st.error(f"Unknown model: {model_choice}")
             st.stop()
-        
-        # Save the trained model
+
         st.session_state.model = model
         st.success(f"✅ {model_choice} trained successfully!")
 
