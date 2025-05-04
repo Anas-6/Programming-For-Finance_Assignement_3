@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.express as px
-import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
@@ -17,29 +16,27 @@ from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, confus
 from io import BytesIO
 import datetime
 
-# ---------------- Streamlit Config ----------------
 st.set_page_config(page_title="Finance ML Dashboard", layout="wide", page_icon="📈")
 
-# ---------------- Welcome UI ----------------
 st.title("📊 ML on Financial Data – AF3005 Assignment 3")
 st.image("https://media.giphy.com/media/QpVUMRUJGokfqXyfa1/giphy.gif", use_container_width=True)
-st.markdown("""
-Welcome to the **Finance ML Dashboard**! 
-This app allows you to upload Kragle datasets or fetch Yahoo Finance data, perform preprocessing, apply ML models, and visualize results.
-""")
+st.markdown("Welcome to the **Finance ML Dashboard**!")
 
-# ---------------- Sidebar ----------------
+# ---------------- Session Initialization ----------------
+for var in ['df', 'X_train', 'X_test', 'y_train', 'y_test', 'y_pred', 'model']:
+    if var not in st.session_state:
+        st.session_state[var] = None
+
+# ---------------- Sidebar: Data Source ----------------
 st.sidebar.title("📁 Data Options")
-
 data_source = st.sidebar.radio("Select Data Source", ["Kragle Dataset (URL)", "Yahoo Finance"])
-
-df = None
 
 if data_source == "Kragle Dataset (URL)":
     url = st.sidebar.text_input("Enter Direct CSV File URL:")
     if st.sidebar.button("Load Kragle Data"):
         try:
             df = pd.read_csv(url)
+            st.session_state.df = df.copy()
             st.sidebar.success("✅ Kragle data loaded!")
         except Exception as e:
             st.sidebar.error(f"❌ Error: {e}")
@@ -52,139 +49,167 @@ elif data_source == "Yahoo Finance":
         df = yf.download(ticker, start=start, end=end)
         if not df.empty:
             df.reset_index(inplace=True)
+            st.session_state.df = df.copy()
             st.sidebar.success("✅ Yahoo data loaded!")
         else:
-            st.sidebar.warning("⚠️ No data found. Try changing the ticker or dates.")
+            st.sidebar.warning("⚠️ No data found.")
 
-if df is not None and not df.empty:
+df = st.session_state.df
+
+if df is not None:
     st.subheader("📄 Raw Data Preview")
     st.dataframe(df.head(), use_container_width=True)
+    # ---------------- Preprocessing ----------------
+    st.header("🔧 Step 1: Data Preprocessing")
 
-    # Session State to persist selections
-    if "df" not in st.session_state:
-        st.session_state.df = df.copy()
+    if st.button("Preprocess Data"):
+        df_cleaned = df.copy()
 
-    df = st.session_state.df
+        # Convert date to datetime if needed
+        if 'Date' in df_cleaned.columns:
+            df_cleaned['Date'] = pd.to_datetime(df_cleaned['Date'])
 
-    # -------- Step 1: Preprocessing --------
-    st.header("🔧 Step 1: Preprocessing")
+        # Drop rows with NaNs
+        df_cleaned.dropna(inplace=True)
 
-    if st.button("Run Preprocessing"):
-        st.info("Cleaning missing values...")
-        df.dropna(inplace=True)
-        st.write("✅ Dropped missing values.")
+        # Remove outliers based on Z-score
+        from scipy.stats import zscore
+        numeric_cols = df_cleaned.select_dtypes(include=np.number).columns
+        df_cleaned = df_cleaned[(np.abs(zscore(df_cleaned[numeric_cols])) < 3).all(axis=1)]
 
-        # Remove outliers using Z-score
-        numeric_cols = df.select_dtypes(include=np.number).columns
-        z_scores = np.abs((df[numeric_cols] - df[numeric_cols].mean()) / df[numeric_cols].std())
-        df = df[(z_scores < 3).all(axis=1)]
-        st.success("✅ Outliers removed using Z-score method.")
-        st.dataframe(df.describe())
+        st.session_state.df = df_cleaned
+        st.success("✅ Data Preprocessing Complete!")
+        st.dataframe(df_cleaned.head(), use_container_width=True)
 
-        st.session_state.df = df  # Save processed df
+    # ---------------- Feature Engineering ----------------
+    st.header("🛠️ Step 2: Feature Engineering")
 
-    # -------- Step 2: Feature Engineering --------
-    st.header("🧠 Step 2: Feature Engineering")
+    if st.button("Generate Features"):
+        df_fe = st.session_state.df.copy()
+        df_fe['Daily Return'] = df_fe['Close'].pct_change()
+        df_fe['MA10'] = df_fe['Close'].rolling(window=10).mean()
+        df_fe['Volatility'] = df_fe['Close'].rolling(window=10).std()
+        df_fe.dropna(inplace=True)
 
-    if st.button("Run Feature Engineering"):
-        df['Daily Return'] = df['Close'].pct_change()
-        df['MA10'] = df['Close'].rolling(window=10).mean()
-        df['Volatility'] = df['Close'].rolling(window=10).std()
-        df.dropna(inplace=True)
-        st.success("✅ Features added: Daily Return, MA10, Volatility")
-        st.line_chart(df[['Close', 'MA10']], use_container_width=True)
+        st.session_state.df = df_fe
+        st.success("✅ Feature Engineering Applied!")
+        st.dataframe(df_fe.head(), use_container_width=True)
 
-        st.session_state.df = df
+        st.plotly_chart(px.line(df_fe, x='Date' if 'Date' in df_fe.columns else df_fe.index, y='Close', title="📈 Closing Price Over Time"), use_container_width=True)
+        st.plotly_chart(px.line(df_fe, x='Date' if 'Date' in df_fe.columns else df_fe.index, y='Daily Return', title="📉 Daily Return"), use_container_width=True)
 
-    # -------- Step 3: Train-Test Split --------
-    st.header("📉 Step 3: Train/Test Split")
-
-    features = st.multiselect("Select feature columns:", df.select_dtypes(include=np.number).columns.tolist(), default=["Daily Return", "MA10", "Volatility"])
-    target = st.selectbox("Select target column:", options=["Close"])
+    # ---------------- Train-Test Split ----------------
+    st.header("✂️ Step 3: Train-Test Split")
 
     if st.button("Split Data"):
-        X = df[features]
-        y = df[target]
+        df_model = st.session_state.df.copy()
+        df_model.dropna(inplace=True)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        # Ensure features and target are available
+        features = df_model.select_dtypes(include=np.number).drop(columns=['Close'])
+        target = df_model['Close']
+
+        X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
+
         st.session_state.X_train = X_train
         st.session_state.X_test = X_test
         st.session_state.y_train = y_train
         st.session_state.y_test = y_test
 
-        pie_data = {"Train": len(X_train), "Test": len(X_test)}
-        st.success("✅ Data split successfully!")
-        fig = px.pie(names=pie_data.keys(), values=pie_data.values(), title="Train vs Test Split")
-        st.plotly_chart(fig)
+        st.success("✅ Data split into Train/Test sets")
+        st.write("Train shape:", X_train.shape)
+        st.write("Test shape:", X_test.shape)
+    # ---------------- ML Model Selection ----------------
+    st.header("🤖 Step 4: Machine Learning Models (Choose One)")
 
-    # -------- Step 4: Model Selection & Training --------
-    st.header("⚙️ Step 4: Machine Learning Models (Choose One)")
+    model_choice = st.selectbox("Select a Machine Learning Model", ["Linear Regression", "Decision Tree Regressor", "Random Forest Regressor"])
 
-    model_type = st.selectbox("Choose a model:", ["Linear Regression", "Logistic Regression", "KMeans Clustering"])
-
+    model = None
     if st.button("Train Model"):
-        if model_type == "Linear Regression":
-            model = LinearRegression()
-            model.fit(st.session_state.X_train, st.session_state.y_train)
-            y_pred = model.predict(st.session_state.X_test)
-            st.session_state.y_pred = y_pred
-            st.session_state.model = model
-            st.success("✅ Linear Regression model trained.")
-
-        elif model_type == "Logistic Regression":
-            y_binary = (st.session_state.y_train > st.session_state.y_train.median()).astype(int)
-            model = LogisticRegression()
-            model.fit(st.session_state.X_train, y_binary)
-            y_pred = model.predict(st.session_state.X_test)
-            st.session_state.y_pred = y_pred
-            st.session_state.model = model
-            st.success("✅ Logistic Regression model trained.")
-
-        elif model_type == "KMeans Clustering":
-            model = KMeans(n_clusters=3, random_state=42)
-            model.fit(st.session_state.X_train)
-            cluster_labels = model.predict(st.session_state.X_test)
-            st.session_state.y_pred = cluster_labels
-            st.session_state.model = model
-            st.success("✅ KMeans clustering applied.")
-
-    # -------- Step 5: Evaluation --------
-    st.header("📈 Step 5: Evaluation")
-
-    if st.button("Evaluate Model"):
+        X_train = st.session_state.X_train
+        X_test = st.session_state.X_test
+        y_train = st.session_state.y_train
         y_test = st.session_state.y_test
-        y_pred = st.session_state.y_pred
 
-        if model_type == "Linear Regression":
-            mse = mean_squared_error(y_test, y_pred)
-            r2 = r2_score(y_test, y_pred)
-            st.write("📊 Mean Squared Error:", round(mse, 2))
-            st.write("📊 R-squared Score:", round(r2, 4))
-            fig = px.scatter(x=y_test, y=y_pred, labels={"x": "Actual", "y": "Predicted"}, title="Actual vs Predicted", color_discrete_sequence=["blue"])
-            fig.add_scatter(x=y_test, y=y_test, mode='lines', name='Ideal Fit', line=dict(color='green'))
-            st.plotly_chart(fig)
+        if model_choice == "Linear Regression":
+            model = LinearRegression()
+        elif model_choice == "Decision Tree Regressor":
+            model = DecisionTreeRegressor(random_state=42)
+        elif model_choice == "Random Forest Regressor":
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
 
-        elif model_type == "Logistic Regression":
-            y_binary_test = (y_test > y_test.median()).astype(int)
-            acc = accuracy_score(y_binary_test, y_pred)
-            st.write("📊 Accuracy:", round(acc, 3))
-            st.write("📊 Confusion Matrix:")
-            st.write(confusion_matrix(y_binary_test, y_pred))
+        model.fit(X_train, y_train)
+        st.session_state.model = model
 
-        elif model_type == "KMeans Clustering":
-            fig = px.scatter_matrix(st.session_state.X_test, color=st.session_state.y_pred, title="KMeans Cluster Visualization")
-            st.plotly_chart(fig)
+        y_pred = model.predict(X_test)
+        st.session_state.y_pred = y_pred
 
-    # -------- Step 6: Results Download --------
-    st.header("📥 Step 6: Results")
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
 
-    if st.button("Download Predictions"):
-        result_df = pd.DataFrame({"Actual": st.session_state.y_test, "Predicted": st.session_state.y_pred})
-        st.dataframe(result_df.head())
+        st.success("✅ Model Trained Successfully")
+        st.write("📊 Mean Squared Error:", round(mse, 2))
+        st.write("📈 R-squared Score:", round(r2, 4))
+
+        # Store for plotting
+        pred_df = pd.DataFrame({"Actual": y_test.values, "Predicted": y_pred})
+        st.session_state.pred_df = pred_df
+
+    # ---------------- Plot Actual vs Predicted ----------------
+    st.header("📍 Step 5: Actual vs Predicted Plot")
+
+    if 'pred_df' in st.session_state:
+        pred_df = st.session_state.pred_df.copy()
+        fig = px.scatter(pred_df, x="Actual", y="Predicted",
+                         color_discrete_sequence=["#636EFA"],
+                         title="Actual vs Predicted Closing Prices")
+        fig.add_shape(type='line', line=dict(dash='dash'),
+                      x0=pred_df["Actual"].min(), y0=pred_df["Actual"].min(),
+                      x1=pred_df["Actual"].max(), y1=pred_df["Actual"].max())
+        st.plotly_chart(fig, use_container_width=True)
+    # ---------------- Show Predictions Table ----------------
+    st.header("📄 Step 6: Show Predictions & Download")
+
+    if 'pred_df' in st.session_state:
+        st.subheader("Sample Predictions")
+        st.dataframe(st.session_state.pred_df.head(), use_container_width=True)
 
         buffer = BytesIO()
-        result_df.to_csv(buffer, index=False)
-        st.download_button("Download CSV", data=buffer.getvalue(), file_name="results.csv", mime="text/csv")
+        st.session_state.pred_df.to_csv(buffer, index=False)
+        st.download_button("📥 Download Predictions as CSV", data=buffer.getvalue(),
+                           file_name="predictions.csv", mime="text/csv")
 
-else:
-    st.warning("⚠️ Please load a dataset to start the workflow.")
+    # ---------------- Extra Visualization ----------------
+    st.header("📈 Bonus Visualizations")
+
+    with st.expander("📊 Distribution of Target Variable (Close Price)"):
+        fig_close = px.histogram(st.session_state.df, x="Close", nbins=50,
+                                 title="Distribution of Closing Price", marginal="box")
+        st.plotly_chart(fig_close, use_container_width=True)
+
+    with st.expander("📉 Correlation Heatmap"):
+        corr = st.session_state.df.select_dtypes(include=np.number).corr()
+        fig_corr = px.imshow(corr, text_auto=True, aspect="auto", title="Correlation Matrix")
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+    with st.expander("📌 Feature Importance (Only for Tree-Based Models)"):
+        if model_choice in ["Decision Tree Regressor", "Random Forest Regressor"]:
+            importance_df = pd.DataFrame({
+                "Feature": st.session_state.X_train.columns,
+                "Importance": st.session_state.model.feature_importances_
+            }).sort_values(by="Importance", ascending=False)
+
+            fig_imp = px.bar(importance_df, x="Feature", y="Importance", title="Feature Importances")
+            st.plotly_chart(fig_imp, use_container_width=True)
+        else:
+            st.info("ℹ️ Feature importance only available for Decision Tree / Random Forest models.")
+
+    # ---------------- Footer ----------------
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; font-size: 16px;'>
+        Built with ❤️ for AF3005 – Programming for Finance <br>
+        <strong>Instructor:</strong> Dr. Usama Arshad <br>
+        <strong>Student:</strong> [Your Name] | Section: BSFT06[A/B/C]
+    </div>
+    """, unsafe_allow_html=True)
