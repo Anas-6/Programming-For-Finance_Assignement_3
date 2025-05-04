@@ -114,9 +114,8 @@ if st.button("3️⃣ Train/Test Split"):
         st.warning("⚠️ Please select features and target first.")
 
 # ---------------- Step 4: Model Selection ----------------
-if st.button("4️⃣ Select Model"):
-
-    model_choice = st.selectbox(
+# ---------------- Step 4: Model Selection ----------------
+model_choice = st.selectbox(
     "Select an ML Model",
     ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
     key="model_choice"
@@ -151,7 +150,6 @@ if st.button("5️⃣ Train Model"):
 
         st.session_state.model = model
         st.success(f"✅ {model_choice} trained successfully!")
-
 # Step 6: Evaluation
 if st.button("6️⃣ Evaluate Model"):
     st.markdown("---\n### 📊 Evaluating Model Performance")
