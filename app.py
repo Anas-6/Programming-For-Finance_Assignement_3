@@ -165,7 +165,6 @@ if st.button("5️⃣ Train Model"):
 
         st.session_state.model = model
         st.success(f"✅ {model_choice} trained successfully!")
-# Step 6: Evaluation
 if st.button("6️⃣ Evaluate Model"):
     st.markdown("---\n### 📊 Evaluating Model Performance")
     model = st.session_state.model
@@ -175,23 +174,39 @@ if st.button("6️⃣ Evaluate Model"):
     st.session_state.y_pred = y_pred
 
     if isinstance(model, LinearRegression):
+        # Metrics
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
         st.metric("📉 Mean Squared Error", f"{mse:,.2f}")
         st.metric("📈 R-squared Score", f"{r2:.4f}")
 
+        # Scatter of Actual vs Predicted
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=y_test, y=y_pred, mode='markers', name="Predicted", marker=dict(color='blue')))
         fig.add_trace(go.Scatter(x=y_test, y=y_test, mode='lines', name="Ideal Line", line=dict(color='green')))
         fig.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted")
         st.plotly_chart(fig)
 
+        # Coefficients
         coeffs = pd.DataFrame({"Feature": X_test.columns, "Coefficient": model.coef_})
+        st.subheader("Model Coefficients")
         st.dataframe(coeffs)
 
+        # Residuals distribution
         residuals = y_test - y_pred
-        fig = px.histogram(residuals, nbins=50, title="Residuals Distribution")
-        st.plotly_chart(fig)
+        fig_resid = px.histogram(residuals, nbins=50, title="Residuals Distribution")
+        st.plotly_chart(fig_resid)
+
+        # NEW: Residuals over Sample Index (Actual - Predicted)
+        st.subheader("Residuals Over Test Samples")
+        resid_df = pd.DataFrame({
+            "Index": y_test.index,
+            "Residual": residuals
+        })
+        fig_diff = px.line(resid_df, x="Index", y="Residual",
+                           title="Actual − Predicted Over Test Set",
+                           labels={"Residual": "Error (Actual - Predicted)"})
+        st.plotly_chart(fig_diff)
 
     elif isinstance(model, LogisticRegression):
         y_true_bin = (y_test > y_test.median()).astype(int)
@@ -201,15 +216,19 @@ if st.button("6️⃣ Evaluate Model"):
         st.text(classification_report(y_true_bin, y_pred))
 
     else:
+        # K-Means Clustering visualization
         st.write("K-Means Clustering Result:")
         st.write(f"Cluster Centers: {model.cluster_centers_}")
         st.write(f"Labels: {model.labels_}")
 
         df_with_labels = X_test.copy()
         df_with_labels['Cluster'] = model.predict(X_test)
-        fig = px.scatter(df_with_labels, x=df_with_labels.columns[0], y=df_with_labels.columns[1], color='Cluster', title="K-Means Clusters")
+        fig = px.scatter(df_with_labels,
+                         x=df_with_labels.columns[0],
+                         y=df_with_labels.columns[1],
+                         color='Cluster',
+                         title="K-Means Clusters")
         st.plotly_chart(fig)
-
 # Step 7: Download Results
 if st.button("7️⃣ Show Predictions & Download"):
     st.markdown("---\n### 💾 Show and Download Predictions")
