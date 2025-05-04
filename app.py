@@ -128,18 +128,38 @@ if st.button("4️⃣ Choose Model"):
 
 # Step 5: Train the Model
 if st.button("5️⃣ Train Model"):
-    model_choice = st.session_state.model_choice
-
-    if model_choice == "Linear Regression":
-        model = LinearRegression()
-    elif model_choice == "Logistic Regression":
-        model = LogisticRegression(max_iter=200)
-    elif model_choice == "K-Means Clustering":
-        model = KMeans(n_clusters=3)  # Example: 3 clusters
-
-    model.fit(st.session_state.X_train, st.session_state.y_train)
-    st.session_state.model = model
-    st.success(f"✅ Model trained successfully using {model_choice}.")
+    # Make sure data is split
+    if st.session_state.X_train is None or st.session_state.y_train is None:
+        st.warning("⚠️ Please complete the Train/Test Split step first.")
+    else:
+        model_choice = st.session_state.get("model_choice", "Linear Regression")
+        X_train = st.session_state.X_train
+        y_train = st.session_state.y_train
+        
+        # Initialize and train
+        if model_choice == "Linear Regression":
+            model = LinearRegression()
+            model.fit(X_train, y_train)
+        
+        elif model_choice == "Logistic Regression":
+            # Binarize the target around its median
+            y_binary = (y_train > y_train.median()).astype(int)
+            model = LogisticRegression(max_iter=200)
+            model.fit(X_train, y_binary)
+            # Save binary labels for later evaluation
+            st.session_state.y_train_binary = y_binary
+        
+        elif model_choice == "K-Means Clustering":
+            model = KMeans(n_clusters=3, random_state=42)
+            model.fit(X_train)
+        
+        else:
+            st.error(f"❌ Unknown model choice: {model_choice}")
+            st.stop()
+        
+        # Save the trained model
+        st.session_state.model = model
+        st.success(f"✅ {model_choice} trained successfully!")
 
 # Step 6: Evaluation
 if st.button("6️⃣ Evaluate Model"):
