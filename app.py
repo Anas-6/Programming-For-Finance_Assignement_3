@@ -46,14 +46,14 @@ st.markdown("Welcome to the **AF3005 Finance ML Dashboard**. Upload Kragle data 
 
 # ----------------- Sidebar -----------------
 st.sidebar.header("📁 Load Data")
-data_option = st.sidebar.radio("Choose Data Source", ["Kragle CSV Link", "Yahoo Finance"])
+data_option = st.sidebar.radio("Choose Data Source", ["Import Kaggle Data", "Yahoo Finance"])
 
-if data_option == "Kragle CSV Link":
-    csv_link = st.sidebar.text_input("Paste Kragle CSV Link:")
+if data_option == "Kragle Link":
+    csv_link = st.sidebar.text_input("Paste Kaggle  Link:")
     if st.sidebar.button("Load Kragle Data"):
         try:
             st.session_state.df = pd.read_csv(csv_link)
-            st.success("✅ Kragle dataset loaded successfully!")
+            st.success("✅ Kaggle dataset loaded successfully!")
         except Exception as e:
             st.error(f"Error loading dataset: {e}")
 
@@ -119,7 +119,7 @@ if st.button("3️⃣ Train/Test Split"):
         st.warning("⚠️ Please select features and target first.")
 
 # ---------------- Step 4: Model Selection ----------------
-st.subheader("⚙️ Step 4: Machine Learning Models (Choose One)")
+
 
 # Bind the selectbox directly to session_state['model_choice']
 model_choice = st.selectbox(
