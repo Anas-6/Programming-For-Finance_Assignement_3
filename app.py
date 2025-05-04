@@ -11,9 +11,11 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 st.set_page_config(page_title="Finance ML Dashboard", layout="wide", page_icon="💹")
 
@@ -116,33 +118,60 @@ if st.button("3️⃣ Train/Test Split"):
     else:
         st.warning("⚠️ Please select features and target first.")
 
-# Step 4: Train Model
-if st.button("4️⃣ Train Model"):
-    model = LinearRegression()
+# Step 4: Model Selection (Choose one)
+if st.button("4️⃣ Choose Model"):
+    model_choice = st.selectbox("Select ML Model", ["Linear Regression", "Logistic Regression", "K-Means Clustering"])
+
+    # Save the model choice in session state
+    st.session_state.model_choice = model_choice
+    st.success(f"✅ Selected model: {model_choice}")
+
+# Step 5: Train the Model
+if st.button("5️⃣ Train Model"):
+    model_choice = st.session_state.model_choice
+
+    if model_choice == "Linear Regression":
+        model = LinearRegression()
+    elif model_choice == "Logistic Regression":
+        model = LogisticRegression(max_iter=200)
+    elif model_choice == "K-Means Clustering":
+        model = KMeans(n_clusters=3)  # Example: 3 clusters
+
     model.fit(st.session_state.X_train, st.session_state.y_train)
     st.session_state.model = model
-    st.success("✅ Model trained successfully.")
+    st.success(f"✅ Model trained successfully using {model_choice}.")
 
-# Step 5: Evaluation
-if st.button("5️⃣ Evaluate Model"):
+# Step 6: Evaluation
+if st.button("6️⃣ Evaluate Model"):
     model = st.session_state.model
-    y_pred = model.predict(st.session_state.X_test)
+    y_pred = model.predict(st.session_state.X_test) if isinstance(model, (LinearRegression, LogisticRegression)) else model.predict(st.session_state.X_test)
     st.session_state.y_pred = y_pred
 
-    mse = mean_squared_error(st.session_state.y_test, y_pred)
-    r2 = r2_score(st.session_state.y_test, y_pred)
+    if isinstance(model, (LinearRegression, LogisticRegression)):
+        mse = mean_squared_error(st.session_state.y_test, y_pred)
+        r2 = r2_score(st.session_state.y_test, y_pred)
+        st.metric("📉 Mean Squared Error", f"{mse:,.2f}")
+        st.metric("📈 R-squared Score", f"{r2:.4f}")
 
-    st.metric("📉 Mean Squared Error", f"{mse:,.2f}")
-    st.metric("📈 R-squared Score", f"{r2:.4f}")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=st.session_state.y_test, y=y_pred, mode='markers', name="Predicted", marker=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=st.session_state.y_test, y=st.session_state.y_test, mode='lines', name="Ideal Line", line=dict(color='green')))
+        fig.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted")
+        st.plotly_chart(fig)
+    else:
+        # K-Means Clustering visualization
+        st.write("K-Means Clustering Result:")
+        st.write(f"Cluster Centers: {model.cluster_centers_}")
+        st.write(f"Labels: {model.labels_}")
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=st.session_state.y_test, y=y_pred, mode='markers', name="Predicted", marker=dict(color='blue')))
-    fig.add_trace(go.Scatter(x=st.session_state.y_test, y=st.session_state.y_test, mode='lines', name="Ideal Line", line=dict(color='green')))
-    fig.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted")
-    st.plotly_chart(fig)
+        # Visualize the clusters
+        df_with_labels = st.session_state.X_test.copy()
+        df_with_labels['Cluster'] = model.labels_
+        fig = px.scatter(df_with_labels, x=df_with_labels.columns[0], y=df_with_labels.columns[1], color='Cluster', title="K-Means Clusters")
+        st.plotly_chart(fig)
 
-# Step 6: Download Results
-if st.button("6️⃣ Show Predictions & Download"):
+# Step 7: Download Results
+if st.button("7️⃣ Show Predictions & Download"):
     results_df = pd.DataFrame({
         "Actual": st.session_state.y_test,
         "Predicted": st.session_state.y_pred
