@@ -118,15 +118,19 @@ if st.button("3️⃣ Train/Test Split"):
     else:
         st.warning("⚠️ Please select features and target first.")
 
+
+
+
 # ---------------- Step 4: Model Selection ----------------
+if st.button("4️⃣ Select Model"):
+    st.session_state.show_model_dropdown = True
 
-
-# Bind the selectbox directly to session_state['model_choice']
-model_choice = st.selectbox(
-    "Select an ML Model",
-    ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
-    key="model_choice"
-)
+if st.session_state.get("show_model_dropdown", False):
+    st.session_state.model_choice = st.selectbox(
+        "Select an ML Model",
+        ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
+        key="model_choice"
+    )
 
 # ---------------- Step 5: Train Model ----------------
 if st.button("5️⃣ Train Model"):
