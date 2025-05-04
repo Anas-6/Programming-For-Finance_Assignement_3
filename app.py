@@ -115,8 +115,8 @@ if st.button("3️⃣ Train/Test Split"):
 
 # ---------------- Step 4: Model Selection ----------------
 if st.button("4️⃣ Select Model"):
-st.markdown("---\n### 🧠 Step 4: Machine Learning Models")
-model_choice = st.selectbox(
+
+    model_choice = st.selectbox(
     "Select an ML Model",
     ["Linear Regression", "Logistic Regression", "K-Means Clustering"],
     key="model_choice"
