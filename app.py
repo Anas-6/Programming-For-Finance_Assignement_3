@@ -114,7 +114,7 @@ if st.button("3️⃣ Train/Test Split"):
         st.warning("⚠️ Please select features and target first.")
 
 # ---------------- Step 4: Model Selection ----------------
-if st.button("4 Select Model"):
+if st.button("4️⃣ Select Model"):
 st.markdown("---\n### 🧠 Step 4: Machine Learning Models")
 model_choice = st.selectbox(
     "Select an ML Model",
@@ -123,7 +123,7 @@ model_choice = st.selectbox(
 )
 
 # ---------------- Step 5: Train Model ----------------
-if st.button("4️⃣ Train Model"):
+if st.button("5️⃣ Train Model"):
     st.markdown("---\n### 🚀 Training the Selected Model")
     if st.session_state.X_train is None or st.session_state.y_train is None:
         st.warning("⚠️ Please complete Train/Test Split first.")
